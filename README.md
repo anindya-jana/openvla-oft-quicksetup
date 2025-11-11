@@ -1,97 +1,171 @@
 # Fine-Tuning Vision-Language-Action Models: Optimizing Speed and Success
 
-**Project website: https://openvla-oft.github.io/**
-
-**Paper: https://arxiv.org/abs/2502.19645**
-
-**Summary video: https://youtu.be/T3Zkkr_NTSA**
-
 ## System Requirements
 
 Inference:
 * 1 GPU with ~16 GB VRAM for LIBERO sim benchmark tasks
-* 1 GPU with ~18 GB VRAM for ALOHA robot tasks
 
-Training:
-* Between 1-8 GPUs with 27-80 GB, depending on the desired training setup (with default bfloat16 data type). See [this FAQ on our project website](https://openvla-oft.github.io/#train-compute) for details.
 
-## Quick Start
+# OpenVLA-OFT × LIBERO: No-Training Inference & Evaluation Runbook
 
-First, set up a conda environment (see instructions in [SETUP.md](SETUP.md)).
+This runbook provides a reproducible, minimal path to evaluate OpenVLA-OFT on the LIBERO simulation benchmark without training. It uses:
+- Conda env: `libero_openvla` (Python 3.10.14)
+- PyTorch 2.2.0 + CUDA 12.1
+- Transformers fork: transformers-openvla-oft (auto-installed via project deps)
+- In-repo HF cache at `./hf-cache` (as requested)
 
-Then, run the Python script below to download a pretrained OpenVLA-OFT checkpoint and run inference to generate an action chunk:
+Primary entrypoint: [eval_libero()](experiments/robot/libero/run_libero_eval.py:461)  
+Environment setup script: [scripts/libero_env_setup.sh](scripts/libero_env_setup.sh)  
+Smoke test script: [scripts/run_libero_eval_smoke.sh](scripts/run_libero_eval_smoke.sh)
 
-```python
-import pickle
-from experiments.robot.libero.run_libero_eval import GenerateConfig
-from experiments.robot.openvla_utils import get_action_head, get_processor, get_proprio_projector, get_vla, get_vla_action
-from prismatic.vla.constants import NUM_ACTIONS_CHUNK, PROPRIO_DIM
+Reference docs:
+- Project instructions: [LIBERO.md](LIBERO.md)
+- LIBERO env setup helper: [get_libero_env()](experiments/robot/libero/libero_utils.py:18)
+- LIBERO extras requirements: [libero_requirements.txt](experiments/robot/libero/libero_requirements.txt:1)
 
-# Instantiate config (see class GenerateConfig in experiments/robot/libero/run_libero_eval.py for definitions)
-cfg = GenerateConfig(
-    pretrained_checkpoint = "moojink/openvla-7b-oft-finetuned-libero-spatial",
-    use_l1_regression = True,
-    use_diffusion = False,
-    use_film = False,
-    num_images_in_input = 2,
-    use_proprio = True,
-    load_in_8bit = False,
-    load_in_4bit = False,
-    center_crop = True,
-    num_open_loop_steps = NUM_ACTIONS_CHUNK,
-    unnorm_key = "libero_spatial_no_noops",
-)
+---
 
-# Load OpenVLA-OFT policy and inputs processor
-vla = get_vla(cfg)
-processor = get_processor(cfg)
+## 1) One-time Environment Setup
 
-# Load MLP action head to generate continuous actions (via L1 regression)
-action_head = get_action_head(cfg, llm_dim=vla.llm_dim)
+Use the provided setup script to create and prepare the environment.
 
-# Load proprio projector to map proprio to language embedding space
-proprio_projector = get_proprio_projector(cfg, llm_dim=vla.llm_dim, proprio_dim=PROPRIO_DIM)
+- Option A: Default env name (`libero_openvla`)
+  ```bash
+  bash scripts/libero_env_setup.sh
+  ```
 
-# Load sample observation:
-#   observation (dict): {
-#     "full_image": primary third-person image,
-#     "wrist_image": wrist-mounted camera image,
-#     "state": robot proprioceptive state,
-#     "task_description": task description,
-#   }
-with open("experiments/robot/libero/sample_libero_spatial_observation.pkl", "rb") as file:
-    observation = pickle.load(file)
+- Option B: Custom env name
+  ```bash
+  bash scripts/libero_env_setup.sh MY_ENV_NAME
+  ```
 
-# Generate robot action chunk (sequence of future actions)
-actions = get_vla_action(cfg, vla, processor, observation, observation["task_description"], action_head, proprio_projector)
-print("Generated action chunk:")
-for act in actions:
-    print(act)
+What it does:
+- Creates conda env (Python 3.10.14)
+- Installs PyTorch 2.2.0 + cu121 wheels
+- Editable install of this repo (pulls transformers-openvla-oft per [pyproject.toml](pyproject.toml:47))
+- Clones and editable-installs LIBERO into `./LIBERO`
+- Installs LIBERO extras from [libero_requirements.txt](experiments/robot/libero/libero_requirements.txt:1)
+- Prepares in-repo HF cache at `./hf-cache`
+
+Validation:
+- The script prints torch version and CUDA availability.
+
+---
+
+## 2) Headless Rendering and Cache
+
+Before running, set environment variables for headless rendering and in-repo cache. NVIDIA + EGL (preferred):
+
+```bash
+export MUJOCO_GL=egl
+export EGL_DEVICE_ID=0
+export HF_HOME="$(pwd)/hf-cache"
+export TRANSFORMERS_CACHE="$(pwd)/hf-cache"
 ```
 
-## Installation
+Notes:
+- If EGL is unavailable, try `export MUJOCO_GL=osmesa` (requires `libosmesa6`).
+- Some systems need GL libs (e.g., `libgl1`, `libegl1`) installed at OS level.
 
-See [SETUP.md](SETUP.md) for instructions on setting up the conda environment.
+---
 
-## Training and Evaluation
+## 3) Run a Smoke-Test Evaluation
 
-See [LIBERO.md](LIBERO.md) for fine-tuning/evaluating on LIBERO simulation benchmark task suites.
+Use the convenience script [scripts/run_libero_eval_smoke.sh](scripts/run_libero_eval_smoke.sh). By default it:
+- Uses the combined checkpoint: `moojink/openvla-7b-oft-finetuned-libero-spatial-object-goal-10`
+- Evaluates the `libero_spatial` suite
+- Runs `--num_trials_per_task 2` (quick validation)
+- Enforces `--center_crop True` (matches training)
+- Disables WandB logging
 
-See [ALOHA.md](ALOHA.md) for fine-tuning/evaluating on real-world ALOHA robot tasks.
-
-## Support
-
-If you run into any issues, please open a new GitHub issue. If you do not receive a response within 2 business days, please email Moo Jin Kim (moojink@cs.stanford.edu) to bring the issue to his attention.
-
-## Citation
-
-If you use our code in your work, please cite [our paper](https://arxiv.org/abs/2502.19645):
-
-```bibtex
-@article{kim2025fine,
-  title={Fine-Tuning Vision-Language-Action Models: Optimizing Speed and Success},
-  author={Kim, Moo Jin and Finn, Chelsea and Liang, Percy},
-  journal={arXiv preprint arXiv:2502.19645},
-  year={2025}
-}
+Run:
+```bash
+bash scripts/run_libero_eval_smoke.sh
 ```
+
+to run all task specific 
+```
+conda run -n openvla-oft bash -lc 'export PYTHONPATH="$PWD:$PWD/LIBERO"; export HF_HOME="$PWD/hf-cache"; export TRANSFORMERS_CACHE="$PWD/hf-cache"; python experiments/robot/libero/run_libero_eval.py --pretrained_checkpoint moojink/openvla-7b-oft-finetuned-libero-spatial-object-goal-10 --task_suite_name libero_spatial --num_trials_per_task 1 --use_wandb False --center_crop True --onscreen_render True'
+
+```
+
+```
+conda run -n openvla-oft bash -lc 'export PYTHONPATH="$PWD:$PWD/LIBERO"; export HF_HOME="$PWD/hf-cache"; export TRANSFORMERS_CACHE="$PWD/hf-cache"; python experiments/robot/libero/run_libero_eval.py --pretrained_checkpoint moojink/openvla-7b-oft-finetuned-libero-spatial-object-goal-10 --task_suite_name libero_spatial --num_trials_per_task 1 --use_wandb False --center_crop True --onscreen_render True'
+
+```
+
+
+Entrypoint implementation: [eval_libero()](experiments/robot/libero/run_libero_eval.py:461)  
+Env factory + task description: [get_libero_env()](experiments/robot/libero/libero_utils.py:18)
+
+---
+
+## 4) Outputs and Where to Find Them
+
+- Log file: `./experiments/logs/EVAL-*.txt` (created in [setup_logging()](experiments/robot/libero/run_libero_eval.py:195))
+- Episode replay MP4s: `./rollouts/YYYY_MM_DD/*.mp4` (via [save_rollout_video()](experiments/robot/libero/libero_utils.py:47))
+
+The final success rate is printed at the end of [eval_libero()](experiments/robot/libero/run_libero_eval.py:507).
+
+---
+
+## 5) Troubleshooting and Performance Tips
+
+- Center crop:
+  - Keep `--center_crop True` because checkpoints were trained with random crop augs ([GenerateConfig.center_crop](experiments/robot/libero/run_libero_eval.py:99) + note in [LIBERO.md](LIBERO.md:82)).
+
+- VRAM / OOM:
+  - Add quantization flag for the VLA:
+    - `--load_in_8bit True`
+    - or `--load_in_4bit True`
+  - Flags are consumed by [get_vla()](experiments/robot/openvla_utils.py:253) when creating the HF model.
+
+- Rendering issues:
+  - Verify `MUJOCO_GL=egl` and correct `EGL_DEVICE_ID`.
+  - If still failing, try `MUJOCO_GL=osmesa` and install OSMesa.  
+  - Ensure `robosuite==1.4.1` matches [libero_requirements.txt](experiments/robot/libero/libero_requirements.txt:2).
+
+- Caching:
+  - Confirm downloads populate `./hf-cache`.
+  - You can clean or relocate cache as needed, but this runbook assumes in-repo cache.
+
+---
+
+## 6) Expanding to Other Suites or Checkpoints
+
+To switch the evaluation:
+- Task suites: `libero_spatial`, `libero_object`, `libero_goal`, `libero_10`.
+- Pretrained checkpoints (suite-specific) from [LIBERO.md](LIBERO.md:44):
+  - `moojink/openvla-7b-oft-finetuned-libero-spatial`
+  - `moojink/openvla-7b-oft-finetuned-libero-object`
+  - `moojink/openvla-7b-oft-finetuned-libero-goal`
+  - `moojink/openvla-7b-oft-finetuned-libero-10`
+- Combined checkpoint:
+  - `moojink/openvla-7b-oft-finetuned-libero-spatial-object-goal-10` ([LIBERO.md](LIBERO.md:49))
+
+Example:
+```bash
+python experiments/robot/libero/run_libero_eval.py \
+  --pretrained_checkpoint moojink/openvla-7b-oft-finetuned-libero-object \
+  --task_suite_name libero_object \
+  --num_trials_per_task 5 \
+  --use_wandb False \
+  --center_crop True
+```
+
+---
+
+## 7) Quick Checklist
+
+- [ ] Create env & install: `bash scripts/libero_env_setup.sh`
+- [ ] Set env vars: `MUJOCO_GL=egl`, `EGL_DEVICE_ID=0`, `HF_HOME=./hf-cache`, `TRANSFORMERS_CACHE=./hf-cache`
+- [ ] Run smoke test: `bash scripts/run_libero_eval_smoke.sh`
+- [ ] Inspect logs and videos
+- [ ] Expand to other suites or scale trials
+
+If you encounter issues, cross-check defaults and flags in [GenerateConfig](experiments/robot/libero/run_libero_eval.py:82) and utilities in:
+- [robot_utils.get_model()](experiments/robot/robot_utils.py:54)
+- [openvla_utils.get_vla()](experiments/robot/openvla_utils.py:253)
+- [openvla_utils.get_vla_action()](experiments/robot/openvla_utils.py:715)
+
+
