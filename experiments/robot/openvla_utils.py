@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import json_numpy
 import numpy as np
 import requests
-import tensorflow as tf
 import torch
 from huggingface_hub import HfApi, hf_hub_download
 from PIL import Image
@@ -521,109 +520,52 @@ def resize_image_for_policy(img: np.ndarray, resize_size: Union[int, Tuple[int, 
     """
     Resize an image to match the policy's expected input size.
 
-    Uses the same resizing scheme as in the training data pipeline for distribution matching.
+    Uses a PIL-based pipeline (LANCZOS) to avoid TensorFlow dependency while
+    keeping behavior close to the training data pipeline.
 
     Args:
-        img: Numpy array containing the image
+        img: Numpy array containing the image (H, W, 3), dtype uint8
         resize_size: Target size as int (square) or (height, width) tuple
 
     Returns:
-        np.ndarray: The resized image
+        np.ndarray: The resized image (uint8)
     """
-    assert isinstance(resize_size, int) or isinstance(resize_size, tuple)
+    assert isinstance(resize_size, (int, tuple)), "resize_size must be int or (H, W) tuple"
     if isinstance(resize_size, int):
-        resize_size = (resize_size, resize_size)
+        resize_size = (resize_size, resize_size)  # (H, W)
 
-    # Resize using the same pipeline as in RLDS dataset builder
-    img = tf.image.encode_jpeg(img)  # Encode as JPEG
-    img = tf.io.decode_image(img, expand_animations=False, dtype=tf.uint8)  # Decode back
-    img = tf.image.resize(img, resize_size, method="lanczos3", antialias=True)
-    img = tf.cast(tf.clip_by_value(tf.round(img), 0, 255), tf.uint8)
-
-    return img.numpy()
-
-
-def crop_and_resize(image: tf.Tensor, crop_scale: float, batch_size: int) -> tf.Tensor:
-    """
-    Center-crop an image and resize it back to original dimensions.
-
-    Uses the same logic as in the training data pipeline for distribution matching.
-
-    Args:
-        image: TF Tensor of shape (batch_size, H, W, C) or (H, W, C) with values in [0,1]
-        crop_scale: Area of center crop relative to original image
-        batch_size: Batch size
-
-    Returns:
-        tf.Tensor: The cropped and resized image
-    """
-    # Handle 3D inputs by adding batch dimension if needed
-    assert image.shape.ndims in (3, 4), "Image must be 3D or 4D tensor"
-    expanded_dims = False
-    if image.shape.ndims == 3:
-        image = tf.expand_dims(image, axis=0)
-        expanded_dims = True
-
-    # Calculate crop dimensions (note: we use sqrt(crop_scale) for h/w)
-    new_heights = tf.reshape(tf.clip_by_value(tf.sqrt(crop_scale), 0, 1), shape=(batch_size,))
-    new_widths = tf.reshape(tf.clip_by_value(tf.sqrt(crop_scale), 0, 1), shape=(batch_size,))
-
-    # Create bounding box for the crop
-    height_offsets = (1 - new_heights) / 2
-    width_offsets = (1 - new_widths) / 2
-    bounding_boxes = tf.stack(
-        [
-            height_offsets,
-            width_offsets,
-            height_offsets + new_heights,
-            width_offsets + new_widths,
-        ],
-        axis=1,
-    )
-
-    # Apply crop and resize
-    image = tf.image.crop_and_resize(
-        image, bounding_boxes, tf.range(batch_size), (OPENVLA_IMAGE_SIZE, OPENVLA_IMAGE_SIZE)
-    )
-
-    # Remove batch dimension if it was added
-    if expanded_dims:
-        image = image[0]
-
-    return image
+    pil_img = Image.fromarray(img).convert("RGB")
+    # PIL expects (W, H)
+    pil_img = pil_img.resize((resize_size[1], resize_size[0]), resample=Image.LANCZOS)
+    return np.array(pil_img, dtype=np.uint8)
 
 
 def center_crop_image(image: Union[np.ndarray, Image.Image]) -> Image.Image:
     """
-    Center crop an image to match training data distribution.
-
-    Args:
-        image: Input image (PIL or numpy array)
-
-    Returns:
-        Image.Image: Cropped PIL Image
+    Center crop an image to match training data distribution (90% area center crop),
+    then resize back to OPENVLA_IMAGE_SIZE using LANCZOS.
     """
-    batch_size = 1
     crop_scale = 0.9
+    # Ensure PIL image
+    if isinstance(image, np.ndarray):
+        pil = Image.fromarray(image).convert("RGB")
+    elif isinstance(image, Image.Image):
+        pil = image.convert("RGB")
+    else:
+        raise AssertionError("center_crop_image expects a numpy array or PIL.Image")
 
-    # Convert to TF Tensor if needed
-    if not isinstance(image, tf.Tensor):
-        image = tf.convert_to_tensor(np.array(image))
+    w, h = pil.size
+    scale = float(np.sqrt(crop_scale))
+    new_w = max(1, int(round(w * scale)))
+    new_h = max(1, int(round(h * scale)))
+    left = (w - new_w) // 2
+    top = (h - new_h) // 2
+    right = left + new_w
+    bottom = top + new_h
 
-    orig_dtype = image.dtype
-
-    # Convert to float32 in range [0,1]
-    image = tf.image.convert_image_dtype(image, tf.float32)
-
-    # Apply center crop and resize
-    image = crop_and_resize(image, crop_scale, batch_size)
-
-    # Convert back to original data type
-    image = tf.clip_by_value(image, 0, 1)
-    image = tf.image.convert_image_dtype(image, orig_dtype, saturate=True)
-
-    # Convert to PIL Image
-    return Image.fromarray(image.numpy()).convert("RGB")
+    cropped = pil.crop((left, top, right, bottom))
+    resized = cropped.resize((OPENVLA_IMAGE_SIZE, OPENVLA_IMAGE_SIZE), resample=Image.LANCZOS)
+    return resized.convert("RGB")
 
 
 def check_image_format(image: Any) -> None:

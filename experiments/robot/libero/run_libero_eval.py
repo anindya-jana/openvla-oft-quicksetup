@@ -114,6 +114,9 @@ class GenerateConfig:
     num_trials_per_task: int = 50                    # Number of rollouts per task
     initial_states_path: str = "DEFAULT"             # "DEFAULT", or path to initial states JSON file
     env_img_res: int = 256                           # Resolution for environment images (not policy input resolution)
+    onscreen_render: bool = False                    # If True, enable on-screen viewer (uses GLFW); keeps offscreen for obs
+    single_task_id: Optional[int] = None             # If set, run only this single task id
+    override_task_description: Optional[str] = None  # If set, override language prompt shown to the policy
 
     #################################################################################################################
     # Utils
@@ -317,6 +320,14 @@ def run_episode(
             # Do nothing for the first few timesteps to let objects stabilize
             if t < cfg.num_steps_wait:
                 obs, reward, done, info = env.step(get_libero_dummy_action(cfg.model_family))
+                if cfg.onscreen_render:
+                    # Render viewer window when enabled (robustly handle wrapper)
+                    viewer = getattr(env, "env", None)
+                    try:
+                        (viewer if viewer is not None else env).render()
+                    except Exception:
+                        # Some wrappers do not expose render; ignore and continue
+                        pass
                 t += 1
                 continue
 
@@ -348,6 +359,13 @@ def run_episode(
 
             # Execute action in environment
             obs, reward, done, info = env.step(action.tolist())
+            if cfg.onscreen_render:
+                # Render viewer window when enabled (robustly handle wrapper)
+                viewer = getattr(env, "env", None)
+                try:
+                    (viewer if viewer is not None else env).render()
+                except Exception:
+                    pass
             if done:
                 success = True
                 break
@@ -381,12 +399,21 @@ def run_task(
     initial_states, all_initial_states = load_initial_states(cfg, task_suite, task_id, log_file)
 
     # Initialize environment and get task description
-    env, task_description = get_libero_env(task, cfg.model_family, resolution=cfg.env_img_res)
+    env, task_description = get_libero_env(
+        task,
+        cfg.model_family,
+        resolution=cfg.env_img_res,
+        onscreen_render=cfg.onscreen_render,
+    )
+    # Use custom prompt text for the policy if provided, but keep original description for env / logging keys
+    prompt_description = cfg.override_task_description if cfg.override_task_description else task_description
 
     # Start episodes
     task_episodes, task_successes = 0, 0
     for episode_idx in tqdm.tqdm(range(cfg.num_trials_per_task)):
         log_message(f"\nTask: {task_description}", log_file)
+        if cfg.override_task_description:
+            log_message(f"Prompt override: {cfg.override_task_description}", log_file)
 
         # Handle initial state
         if cfg.initial_states_path == "DEFAULT":
@@ -411,7 +438,7 @@ def run_task(
         success, replay_images = run_episode(
             cfg,
             env,
-            task_description,
+            prompt_description,
             model,
             resize_size,
             processor,
@@ -485,7 +512,14 @@ def eval_libero(cfg: GenerateConfig) -> float:
 
     # Start evaluation
     total_episodes, total_successes = 0, 0
-    for task_id in tqdm.tqdm(range(num_tasks)):
+    # Optionally restrict to a single task id
+    if cfg.single_task_id is not None:
+        assert 0 <= cfg.single_task_id < num_tasks, "single_task_id out of range"
+        task_ids = [cfg.single_task_id]
+    else:
+        task_ids = list(range(num_tasks))
+
+    for task_id in tqdm.tqdm(task_ids):
         total_episodes, total_successes = run_task(
             cfg,
             task_suite,
