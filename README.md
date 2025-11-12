@@ -1,11 +1,3 @@
-# Fine-Tuning Vision-Language-Action Models: Optimizing Speed and Success
-
-## System Requirements
-
-Inference:
-* 1 GPU with ~16 GB VRAM for LIBERO sim benchmark tasks
-
-
 # OpenVLA-OFT × LIBERO: No-Training Inference & Evaluation Runbook
 
 This runbook provides a reproducible, minimal path to evaluate OpenVLA-OFT on the LIBERO simulation benchmark without training. It uses:
@@ -90,8 +82,24 @@ conda run -n openvla-oft bash -lc 'export PYTHONPATH="$PWD:$PWD/LIBERO"; export 
 ```
 
 ```
-conda run -n openvla-oft bash -lc 'export PYTHONPATH="$PWD:$PWD/LIBERO"; export HF_HOME="$PWD/hf-cache"; export TRANSFORMERS_CACHE="$PWD/hf-cache"; python experiments/robot/libero/run_libero_eval.py --pretrained_checkpoint moojink/openvla-7b-oft-finetuned-libero-spatial-object-goal-10 --task_suite_name libero_spatial --num_trials_per_task 1 --use_wandb False --center_crop True --onscreen_render True'
+conda run -n openvla-oft bash -lc 'export PYTHONPATH="$PWD:$PWD/LIBERO"; export HF_HOME="$PWD/hf-cache"; export TRANSFORMERS_CACHE="$PWD/hf-cache"; python experiments/robot/libero/run_libero_eval.py --pretrained_checkpoint moojink/openvla-7b-oft-finetuned-libero-spatial --task_suite_name libero_spatial --num_trials_per_task 1 --use_wandb False --center_crop True --onscreen_render True'
 
+```
+to get the task id 
+
+```
+conda run -n openvla-oft bash -lc 'python - << "PY"
+from libero.libero import benchmark
+suite = benchmark.get_benchmark_dict()["libero_spatial"]()
+for i in range(suite.n_tasks):
+    print(f"{i}: {suite.get_task(i).language}")
+PY'
+```
+
+To run a particular task with id 
+
+```
+conda run -n openvla-oft bash -lc 'export PYTHONPATH="$PWD:$PWD/LIBERO"; export HF_HOME="$PWD/hf-cache"; export TRANSFORMERS_CACHE="$PWD/hf-cache"; python experiments/robot/libero/run_libero_eval.py --pretrained_checkpoint moojink/openvla-7b-oft-finetuned-libero-spatial-object-goal-10 --task_suite_name libero_spatial --single_task_id 3 --num_trials_per_task 1 --use_wandb False --center_crop True --onscreen_render True'
 ```
 
 
@@ -167,5 +175,4 @@ If you encounter issues, cross-check defaults and flags in [GenerateConfig](expe
 - [robot_utils.get_model()](experiments/robot/robot_utils.py:54)
 - [openvla_utils.get_vla()](experiments/robot/openvla_utils.py:253)
 - [openvla_utils.get_vla_action()](experiments/robot/openvla_utils.py:715)
-
 
