@@ -39,7 +39,6 @@ from experiments.robot.openvla_utils import (
     resize_image_for_policy,
 )
 from experiments.robot.robot_utils import (
-    DATE,           # ADD THIS LINE
     DATE_TIME,
     get_action,
     get_image_resize_size,
@@ -48,7 +47,6 @@ from experiments.robot.robot_utils import (
     normalize_gripper_action,
     set_seed_everywhere,
 )
-
 from prismatic.vla.constants import NUM_ACTIONS_CHUNK
 
 
@@ -115,14 +113,10 @@ class GenerateConfig:
     num_steps_wait: int = 10                         # Number of steps to wait for objects to stabilize in sim
     num_trials_per_task: int = 50                    # Number of rollouts per task
     initial_states_path: str = "DEFAULT"             # "DEFAULT", or path to initial states JSON file
-    env_img_res: int = 64                         # Resolution for environment images (not policy input resolution)
+    env_img_res: int = 256                           # Resolution for environment images (not policy input resolution)
     onscreen_render: bool = False                    # If True, enable on-screen viewer (uses GLFW); keeps offscreen for obs
     single_task_id: Optional[int] = None             # If set, run only this single task id
-    override_task_description: Optional[str] = None 
-    save_images: bool = False                           # If set, override language prompt shown to the policy
-    save_image_frequency: int = 300                  # Save images every N steps (30 â‰ˆ 40 sec at 30Hz)
-    save_image_resolution: int = 256           # Resolution for saved images 
-    
+    override_task_description: Optional[str] = None  # If set, override language prompt shown to the policy
 
     #################################################################################################################
     # Utils
@@ -248,35 +242,12 @@ def load_initial_states(cfg: GenerateConfig, task_suite, task_id: int, log_file=
         log_message("Using default initial states", log_file)
         return initial_states, None
 
-from PIL import Image
 
-def prepare_observation(obs, resize_size, save_dir=None, step=None, save_frequency=15):
-    """
-    Prepare observation for policy input and optionally save images.
-    
-    Args:
-        save_frequency: Save images every N steps (15 steps â‰ˆ 2 seconds at 30Hz, 22 steps â‰ˆ 3 seconds)
-    """
+def prepare_observation(obs, resize_size):
+    """Prepare observation for policy input."""
     # Get preprocessed images
     img = get_libero_image(obs)
     wrist_img = get_libero_wrist_image(obs)
-
-    # Save original images if directory is provided AND it's a save step
-    if save_dir is not None and step is not None and step % save_frequency == 0:
-        # Reduce resolution for saving 
-        save_resolution = (256,256)  # Adjust this as needed
-        
-        # Resize images for saving
-        img_to_save = Image.fromarray(img).resize(save_resolution, Image.LANCZOS)
-        wrist_img_to_save = Image.fromarray(wrist_img).resize(save_resolution, Image.LANCZOS)
-        
-        # Save full image (third-person view)
-        full_img_path = os.path.join(save_dir, f"full_image_step_{step:04d}.png")
-        img_to_save.save(full_img_path, optimize=True, quality=85)
-        
-        # Save wrist image (wrist camera view)
-        wrist_img_path = os.path.join(save_dir, f"wrist_image_step_{step:04d}.png")
-        wrist_img_to_save.save(wrist_img_path, optimize=True, quality=85)
 
     # Resize images to size expected by model
     img_resized = resize_image_for_policy(img, resize_size)
@@ -291,8 +262,7 @@ def prepare_observation(obs, resize_size, save_dir=None, step=None, save_frequen
         ),
     }
 
-    return observation, img
-
+    return observation, img  # Return both processed observation and original image for replay
 
 
 def process_action(action, model_family):
@@ -319,21 +289,11 @@ def run_episode(
     proprio_projector=None,
     noisy_action_projector=None,
     initial_state=None,
-    episode_idx=0,  # NEW: Add episode index
     log_file=None,
 ):
     """Run a single episode in the environment."""
     # Reset environment
     env.reset()
-
-    # Create directory for saving images only if enabled
-    image_save_dir = None
-    if cfg.save_images:
-        processed_task_description = task_description.lower().replace(" ", "_").replace("\n", "_").replace(".", "_")[:50]
-        image_save_dir = f"./saved_images/{DATE}/{processed_task_description}/episode_{episode_idx:04d}"
-        os.makedirs(image_save_dir, exist_ok=True)
-        log_message(f"Saving images to: {image_save_dir}", log_file)
-
 
     # Set initial state if provided
     if initial_state is not None:
@@ -372,17 +332,8 @@ def run_episode(
                 continue
 
             # Prepare observation
-            step_count = t - cfg.num_steps_wait
-            observation, img = prepare_observation(
-                obs, 
-                resize_size, 
-                image_save_dir, 
-                step_count,
-                save_frequency=cfg.save_image_frequency
-            )
+            observation, img = prepare_observation(obs, resize_size)
             replay_images.append(img)
-
-
 
             # If action queue is empty, requery model
             if len(action_queue) == 0:
@@ -484,7 +435,6 @@ def run_task(
         log_message(f"Starting episode {task_episodes + 1}...", log_file)
 
         # Run episode
-        # Run episode
         success, replay_images = run_episode(
             cfg,
             env,
@@ -496,10 +446,8 @@ def run_task(
             proprio_projector,
             noisy_action_projector,
             initial_state,
-            episode_idx,  # NEW: Pass episode index
             log_file,
         )
-
 
         # Update counters
         task_episodes += 1
