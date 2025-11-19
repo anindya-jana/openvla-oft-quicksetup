@@ -16,7 +16,7 @@ from experiments.robot.robot_utils import (
 )
 
 
-def get_libero_env(task, model_family, resolution=256, onscreen_render: bool = False):
+def get_libero_env(task, model_family, resolution=1024, onscreen_render: bool = False):
     """Initializes and returns the LIBERO environment, along with the task description."""
     task_description = task.language
     task_bddl_file = os.path.join(get_libero_path("bddl_files"), task.problem_folder, task.bddl_file)

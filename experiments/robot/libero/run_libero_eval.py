@@ -83,7 +83,6 @@ logger = logging.getLogger(__name__)
 @dataclass
 class GenerateConfig:
     # fmt: off
-
     #################################################################################################################
     # Model-specific parameters
     #################################################################################################################
@@ -95,7 +94,7 @@ class GenerateConfig:
     num_diffusion_steps_train: int = 50              # (When `diffusion==True`) Number of diffusion steps used for training
     num_diffusion_steps_inference: int = 50          # (When `diffusion==True`) Number of diffusion steps used for inference
     use_film: bool = False                           # If True, uses FiLM to infuse language inputs into visual features
-    num_images_in_input: int = 2                     # Number of images in the VLA input (default: 1)
+    num_images_in_input: int =2                      # Number of images in the VLA input (default: 1)
     use_proprio: bool = True                         # Whether to include proprio state in input
 
     center_crop: bool = True                         # Center crop? (if trained w/ random crop image aug)
@@ -107,7 +106,6 @@ class GenerateConfig:
 
     load_in_8bit: bool = False                       # (For OpenVLA only) Load with 8-bit quantization
     load_in_4bit: bool = False                       # (For OpenVLA only) Load with 4-bit quantization
-
     #################################################################################################################
     # LIBERO environment-specific parameters
     #################################################################################################################
@@ -115,13 +113,13 @@ class GenerateConfig:
     num_steps_wait: int = 10                         # Number of steps to wait for objects to stabilize in sim
     num_trials_per_task: int = 50                    # Number of rollouts per task
     initial_states_path: str = "DEFAULT"             # "DEFAULT", or path to initial states JSON file
-    env_img_res: int = 64                         # Resolution for environment images (not policy input resolution)
+    env_img_res: int = 2048                          # Resolution for environment images (not policy input resolution)
     onscreen_render: bool = False                    # If True, enable on-screen viewer (uses GLFW); keeps offscreen for obs
     single_task_id: Optional[int] = None             # If set, run only this single task id
     override_task_description: Optional[str] = None 
     save_images: bool = False                           # If set, override language prompt shown to the policy
     save_image_frequency: int = 300                  # Save images every N steps (30 â‰ˆ 40 sec at 30Hz)
-    save_image_resolution: int = 256           # Resolution for saved images 
+    save_image_resolution: int = 256           # Resolution for saved im512ages 
     
 
     #################################################################################################################
