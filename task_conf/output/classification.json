@@ -1,0 +1,24 @@
+{
+  "category": "libero_object",
+  "confidence": 1.0,
+  "reasoning": "Basket manipulation task",
+  "method": "text_rule",
+  "scene_graph_features": {
+    "num_objects": 2,
+    "num_relationships": 1,
+    "objects": [
+      "box",
+      "basket"
+    ],
+    "relationships": [
+      "right_of"
+    ],
+    "spatial_relations": [
+      "box - right_of - basket"
+    ],
+    "has_basket": true,
+    "has_cabinet": false,
+    "has_drawer": false,
+    "relationship_complexity": 0.5
+  }
+}

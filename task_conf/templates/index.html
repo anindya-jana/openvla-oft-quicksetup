@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>LIBERO Task Configuration</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0; padding: 0; min-height: 100vh;
+        }
+        .container {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 15px;
+        }
+        header {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        h1 { color: #333; margin-bottom: 10px; }
+        .subtitle { color: #666; }
+        .controls {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+        }
+        .btn-primary { background-color: #764ba2; color: white; }
+        .btn-primary:hover { background-color: #5b3881; }
+        .btn-success { background-color: #38ef7d; color: #111; }
+        .btn-success:hover { background-color: #1ab957; }
+        .btn-sim { background-color: #51c8f9; color: white; }
+        .btn-sim:hover { background-color: #2677b8; }
+        .current-task {
+            display: none;
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .task-display {
+            display: flex;
+            gap: 25px;
+            align-items: flex-start;
+        }
+        .task-image {
+            width: 400px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+        }
+        .task-info { flex: 1; }
+        .task-info h2 { margin-bottom: 15px; font-size: 1.5em; color: #333; }
+        .task-description {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            font-size: 1.05em;
+            line-height: 1.6;
+            color: #555;
+        }
+        .results { 
+            display: none;
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .results.show { display: block; }
+        .big-output {
+            font-size: 1.8em;
+            color: #764ba2;
+            text-align: center;
+            margin-bottom: 0.6em;
+            font-weight: bold;
+            line-height: 1.4;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 10px;
+        }
+        .sim-result {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 1.1em;
+            color: #2e7d32;
+            text-align: center;
+            white-space: pre-line;
+        }
+        .sim-result.error {
+            background: #ffebee;
+            border-left-color: #f44336;
+            color: #c62828;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        }
+        .loading.show { display: block; }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #764ba2;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @media (max-width: 768px) {
+            .task-display { flex-direction: column; }
+            .task-image { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>LIBERO Task Configuration</h1>
+            <p class="subtitle">Select and analyze robotic manipulation tasks</p>
+        </header>
+        
+        <div class="controls">
+            <button class="btn btn-primary" onclick="randomizeTask()">Randomize Scene</button>
+            <button class="btn btn-success" onclick="runAnalysis()">Run Classifier</button>
+            <button id="btnSim" class="btn btn-sim" style="display:none;" onclick="runSimulation()">Run Simulation</button>
+        </div>
+        
+        <div id="currentTask" class="current-task">
+            <div class="task-display">
+                <img id="taskImage" class="task-image" src="" alt="Task Scene" />
+                <div class="task-info">
+                    <h2>Current Task</h2>
+                    <div id="taskDescription" class="task-description"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p id="loadingMsg">Processing...</p>
+        </div>
+        
+        <div id="results" class="results">
+            <div id="bigResult" class="big-output"></div>
+            <div id="simResult" class="sim-result" style="display:none;"></div>
+        </div>
+    </div>
+    
+    <script>
+        let currentTask = null;
+        let classifierOutput = "";
+        
+        async function randomizeTask() {
+            try {
+                document.getElementById("btnSim").style.display = "none";
+                document.getElementById("results").classList.remove("show");
+                document.getElementById("simResult").style.display = "none";
+                const response = await fetch("/api/random-task");
+                const task = await response.json();
+                if (task.error) { alert(task.error); return; }
+                currentTask = task;
+                classifierOutput = "";
+                displayTask(task);
+            } catch (error) {
+                console.error('Error:', error);
+                alert("Failed to load task");
+            }
+        }
+        
+        function displayTask(task) {
+            document.getElementById("currentTask").style.display = "block";
+            document.getElementById("taskImage").src = "/" + task.image;
+            document.getElementById("taskDescription").textContent = task.description;
+            document.getElementById("bigResult").textContent = "";
+        }
+        
+        async function runAnalysis() {
+            if (!currentTask) { alert("Please select a task first"); return; }
+            document.getElementById("loading").classList.add("show");
+            document.getElementById("loadingMsg").textContent = "Running Classifier...";
+            document.getElementById("results").classList.remove("show");
+            document.getElementById("btnSim").style.display = "none";
+            document.getElementById("simResult").style.display = "none";
+            
+            try {
+                const response = await fetch("/api/run-analysis", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(currentTask)
+                });
+                const result = await response.json();
+                document.getElementById("loading").classList.remove("show");
+                
+                if (result.success) {
+                    classifierOutput = (result.stdout || "").trim();
+                    displayResults(result);
+                    document.getElementById("btnSim").style.display = classifierOutput ? "inline-block" : "none";
+                } else {
+                    classifierOutput = "";
+                    document.getElementById("btnSim").style.display = "none";
+                    alert("Analysis failed: " + (result.error || "Unknown error"));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById("loading").classList.remove("show");
+                alert("Failed to run analysis");
+            }
+        }
+        
+        function displayResults(result) {
+            document.getElementById("results").classList.add("show");
+            // Use the extracted classifier result from server
+            let displayText = result.classifier_result || "No classification result";
+            document.getElementById("bigResult").textContent = displayText;
+        }
+        
+        async function runSimulation() {
+            if (!classifierOutput) { alert("Run the classifier first."); return; }
+            if (!currentTask) { alert("No current task."); return; }
+            
+            document.getElementById("loading").classList.add("show");
+            document.getElementById("loadingMsg").textContent = "Running Simulation...";
+            document.getElementById("simResult").style.display = "none";
+            
+            try {
+                const response = await fetch("/api/run-simulation", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        classifier_output: classifierOutput,
+                        description: currentTask.description
+                    })
+                });
+                const result = await response.json();
+                document.getElementById("loading").classList.remove("show");
+                
+                const simResultDiv = document.getElementById("simResult");
+                simResultDiv.style.display = "block";
+                
+                if (result.success) {
+                    simResultDiv.className = "sim-result";
+                    let msg = "Simulation completed successfully!";
+                    if (result.success_rate && result.success_rate !== "N/A") {
+                        const rate = parseFloat(result.success_rate) * 100;
+                        msg += `\nSuccess Rate: ${rate.toFixed(1)}%`;
+                    }
+                    if (result.predicted_suite && result.used_suite && result.predicted_suite !== result.used_suite) {
+                        msg += `\nPredicted: ${result.predicted_suite}, Used: ${result.used_suite}`;
+                    }
+                    simResultDiv.textContent = msg;
+                } else {
+                    simResultDiv.className = "sim-result error";
+                    simResultDiv.textContent = "Simulation failed: " + (result.error || "Unknown error");
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById("loading").classList.remove("show");
+                const simResultDiv = document.getElementById("simResult");
+                simResultDiv.style.display = "block";
+                simResultDiv.className = "sim-result error";
+                simResultDiv.textContent = "Simulation error occurred";
+            }
+        }
+        
+        window.onload = randomizeTask;
+    </script>
+</body>
+</html>

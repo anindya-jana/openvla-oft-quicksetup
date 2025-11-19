@@ -1,0 +1,55 @@
+{
+  "objects": [
+    {
+      "object_id": 0,
+      "label": "box",
+      "bbox": [
+        423.5910339355469,
+        528.1080932617188,
+        484.5040588378906,
+        611.7391967773438
+      ],
+      "score": 0.29992666840553284,
+      "attributes": {
+        "center": [
+          454.04754638671875,
+          569.9236450195312
+        ],
+        "area": 5094.223491057754
+      }
+    },
+    {
+      "object_id": 1,
+      "label": "basket",
+      "bbox": [
+        0.7307815551757812,
+        456.9404296875,
+        231.79318237304688,
+        778.6348876953125
+      ],
+      "score": 0.4046836495399475,
+      "attributes": {
+        "center": [
+          116.26198196411133,
+          617.7876586914062
+        ],
+        "area": 74331.49379708897
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "subject_id": 0,
+      "subject": "box",
+      "predicate": "right_of",
+      "object_id": 1,
+      "object": "basket",
+      "triplet": "box - right_of - basket"
+    }
+  ],
+  "metadata": {
+    "num_objects": 2,
+    "image_path": "/home/server/openvla-oft/task_conf/simple/saved_images/Libero 10/put_both_the_alphabet_soup_and_the_cream_cheese_bo/episode_0000/full_image_step_0000.png",
+    "num_relationships": 1
+  }
+}

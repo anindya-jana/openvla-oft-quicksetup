@@ -1,0 +1,18 @@
+{
+  "status": "error",
+  "error_type": "no_objects_detected",
+  "message": "Cannot determine task category - no objects detected in image",
+  "text": "pick_up_the_black_bowl_and_place_it_on_the_plate",
+  "image_path": "scene.png",
+  "extracted_objects": [
+    "black bowl",
+    "bowl",
+    "plate"
+  ],
+  "num_detections": 0,
+  "suggestions": [
+    "Lower detection threshold",
+    "Verify image contains mentioned objects",
+    "Check image quality"
+  ]
+}

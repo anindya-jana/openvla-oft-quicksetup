@@ -1,0 +1,61 @@
+{
+  "overall_accuracy": 87.5,
+  "total_tasks": 40,
+  "correct": 35,
+  "incorrect": 5,
+  "errors": 0,
+  "per_category": {
+    "libero_spatial": {
+      "total": 10,
+      "correct": 10,
+      "accuracy": 100.0
+    },
+    "libero_object": {
+      "total": 10,
+      "correct": 10,
+      "accuracy": 100.0
+    },
+    "libero_goal": {
+      "total": 10,
+      "correct": 5,
+      "accuracy": 50.0
+    },
+    "libero_10": {
+      "total": 10,
+      "correct": 10,
+      "accuracy": 100.0
+    }
+  },
+  "misclassified": [
+    {
+      "task": "put_the_wine_bottle_on_top_of_the_cabinet",
+      "true": "libero_goal",
+      "predicted": "libero_spatial",
+      "confidence": 0.9
+    },
+    {
+      "task": "put_the_bowl_on_top_of_the_cabinet",
+      "true": "libero_goal",
+      "predicted": "libero_spatial",
+      "confidence": 0.9
+    },
+    {
+      "task": "push_the_plate_to_the_front_of_the_stove",
+      "true": "libero_goal",
+      "predicted": "libero_spatial",
+      "confidence": 0.9
+    },
+    {
+      "task": "turn_on_the_stove",
+      "true": "libero_goal",
+      "predicted": "libero_10",
+      "confidence": 0.9
+    },
+    {
+      "task": "put_the_wine_bottle_on_the_rack",
+      "true": "libero_goal",
+      "predicted": "libero_10",
+      "confidence": 0.9
+    }
+  ]
+}
